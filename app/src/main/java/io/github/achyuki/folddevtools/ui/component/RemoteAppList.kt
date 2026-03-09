@@ -49,11 +49,11 @@ fun RemoteAppsList(navigator: NavController, service: IRemoteService) {
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(remoteApps) {
-                RemoteAppItem(it) {
-                    val bindAddress = preferences.getString("bindaddress", null) ?: "127.0.0.1"
+            items(remoteApps) { item ->
+                RemoteAppItem(item) {
+                    val bindAddress = preferences.getString("bindaddress", null) ?: "0.0.0.0"
                     val bindPort = preferences.getInt("bindport", 9223)
-                    val useFloat = preferences.getBoolean("localfloat", true)
+                    val useFloat = preferences.getBoolean("localfloat", false)
                     val title = it.appName ?: it.socketName
 
                     startDevtoolsService(context = context, bindHost = bindAddress, bindPort = bindPort, socket = it.socketName)

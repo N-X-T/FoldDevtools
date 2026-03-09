@@ -81,7 +81,7 @@ fun AttachPageList(navigator: NavController) {
                                 }
                                 dbgUrl += "${entryArg.first}?${entryArg.second}"
 
-                                val extBrowser = preferences.getBoolean("extbrowser", false)
+                                val extBrowser = preferences.getBoolean("extbrowser", true)
                                 if (extBrowser) {
                                     uriHandler.openUri(dbgUrl)
                                 } else {

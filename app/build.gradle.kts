@@ -100,6 +100,4 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.coil.okhttp)
-
-    compileOnly(libs.xposed.api)
 }

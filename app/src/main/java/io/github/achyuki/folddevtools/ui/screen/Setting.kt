@@ -63,32 +63,9 @@ fun SettingScreen(navigator: NavController) {
                         Text(text = if (it) "Debug local WebView with root access" else "Debug only through remote access")
                     }
                 )
-                switchPreference(
-                    key = "xphook",
-                    defaultValue = true,
-                    title = { Text(text = "Force enable debugging") },
-                    icon = {
-                        Icon(imageVector = Icons.Outlined.Healing, contentDescription = null)
-                    },
-                    summary = {
-                        Text(text = "Force-enable WebView debugging through xposed hook")
-                    }
-                )
-                val pages = listOf("<AUTO>", "devtools_app", "inspector", "js_app")
-                listPreference(
-                    key = "entrypage",
-                    defaultValue = pages[0],
-                    values = pages,
-                    title = { Text(text = "Devtools entry page") },
-                    icon = {
-                        Icon(imageVector = Icons.AutoMirrored.Outlined.Article, contentDescription = null)
-                    },
-                    summary = { Text(text = it) },
-                    type = ListPreferenceType.DROPDOWN_MENU
-                )
                 textFieldPreference(
                     key = "bindaddress",
-                    defaultValue = "127.0.0.1",
+                    defaultValue = "0.0.0.0",
                     title = { Text(text = "Server binding address") },
                     textToValue = { it },
                     icon = {
@@ -119,7 +96,7 @@ fun SettingScreen(navigator: NavController) {
                 )
                 switchPreference(
                     key = "localfloat",
-                    defaultValue = true,
+                    defaultValue = false,
                     title = { Text(text = "Local floating window") },
                     icon = {
                         Icon(imageVector = Icons.Outlined.ContentCopy, contentDescription = null)
@@ -141,7 +118,7 @@ fun SettingScreen(navigator: NavController) {
                 )
                 switchPreference(
                     key = "extbrowser",
-                    defaultValue = false,
+                    defaultValue = true,
                     title = { Text(text = "External browser") },
                     icon = {
                         Icon(imageVector = Icons.Outlined.ArrowOutward, contentDescription = null)
@@ -158,7 +135,7 @@ fun SettingScreen(navigator: NavController) {
                     },
                     summary = { Text(text = "Review the source code or report issues") }
                 ) {
-                    uriHandler.openUri("https://github.com/achyuki/FoldDevtools")
+                    uriHandler.openUri("https://github.com/N-X-T/FoldDevtools")
                 }
             }
         }

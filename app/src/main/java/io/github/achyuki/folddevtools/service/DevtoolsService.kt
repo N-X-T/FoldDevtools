@@ -22,6 +22,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
 import kotlinx.coroutines.*
+import java.io.InputStream
 
 class DevtoolsService : Service() {
     companion object {
@@ -55,7 +56,7 @@ class DevtoolsService : Service() {
         super.onStartCommand(intent, flags, startId)
         if (intent == null) return START_NOT_STICKY
 
-        when (intent?.action) {
+        when (intent.action) {
             ACTION_STOP_SERVICE -> {
                 runBlocking {
                     stopService()
@@ -70,7 +71,7 @@ class DevtoolsService : Service() {
             }
         }
 
-        val bindHost = intent.getStringExtra(EXTRA_BIND_HOST) ?: "127.0.0.1"
+        val bindHost = intent.getStringExtra(EXTRA_BIND_HOST) ?: "0.0.0.0"
         val bindPort = intent.getIntExtra(EXTRA_BIND_PORT, 9223)
         val socket = intent.getStringExtra(EXTRA_SOCKET)
         val host = intent.getStringExtra(EXTRA_HOST)
@@ -124,30 +125,31 @@ class DevtoolsService : Service() {
     private suspend fun startService(bindHost: String, bindPort: Int, socketWrap: SocketWrap?) = coroutineScope {
         Log.i(TAG, "Devtools service starting on $bindHost:$bindPort")
 
-        ServerSocket().apply {
+        val serverSocket = ServerSocket().apply {
             reuseAddress = true
             bind(InetSocketAddress(bindHost, bindPort))
-        }.use {
-            it.closeOnCancel { serverSocket ->
-                while (isActive) {
-                    val client = serverSocket.accept()
-                    launch {
-                        client.use {
-                            it.closeOnCancel {
-                                try {
-                                    Log.i(TAG, "New client connected")
-                                    handleClient(it, socketWrap)
-                                } catch (e: SocketException) {
-                                    if (e.message == "Socket closed") {
-                                        Log.d(TAG, e.stackTraceToString())
-                                    } else {
-                                        Log.e(TAG, e.stackTraceToString())
-                                    }
-                                } catch (e: Exception) {
+        }
+
+        serverSocket.closeOnCancel { server ->
+            while (isActive) {
+                val client = server.accept()
+
+                launch {
+                    client.use { socket ->
+                        socket.closeOnCancel {
+                            try {
+                                Log.i(TAG, "New client connected")
+                                handleClient(socket, socketWrap)
+                            } catch (e: SocketException) {
+                                if (e.message == "Socket closed") {
+                                    Log.d(TAG, e.stackTraceToString())
+                                } else {
                                     Log.e(TAG, e.stackTraceToString())
-                                } finally {
-                                    Log.i(TAG, "Client closed")
                                 }
+                            } catch (e: Exception) {
+                                Log.e(TAG, e.stackTraceToString())
+                            } finally {
+                                Log.i(TAG, "Client closed")
                             }
                         }
                     }
@@ -171,7 +173,8 @@ class DevtoolsService : Service() {
                 val headers = ins.praseHeader()
                 httpVersion = headers.getProtocol()[2]
                 headers.remove("Origin") // bypass https://github.com/chromium/chromium/blob/e89a5a846259a8769064296db13b1d1cbf24ea6c/content/browser/devtools/devtools_http_handler.cc#L761
-                val path = headers.getProtocol()[1].substringBefore("?")
+                var path = headers.getProtocol()[1].substringBefore("?")
+                if(path == "/") path = "/index.html"
                 Log.d(TAG, "GET ${headers.getProtocol()[1]}")
                 try {
                     val inputStream = appContext.assets.open("devtools-frontend$path")
@@ -216,7 +219,7 @@ class DevtoolsService : Service() {
                                             socketPipe(rins to rous, ins to ous)
                                         } else {
                                             val bodyLength = resHeaders.get("Content-Length")!!.toInt()
-                                            val bodyBytes = rins.readNBytes(bodyLength)
+                                            val bodyBytes = rins.readNBytesCompat(bodyLength)
 
                                             ous.write(bodyBytes)
                                             ous.flush()
@@ -249,19 +252,17 @@ class DevtoolsService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Service",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                // description = ""
-                setShowBadge(false)
-            }
-
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Service",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            // description = ""
+            setShowBadge(false)
         }
+
+        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.createNotificationChannel(channel)
     }
 
     private fun createNotification(content: String): Notification {
@@ -305,11 +306,7 @@ fun startDevtoolsService(
         host?.let { putExtra(DevtoolsService.EXTRA_HOST, host) }
         port?.let { putExtra(DevtoolsService.EXTRA_PORT, port) }
     }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        context.startForegroundService(intent)
-    } else {
-        context.startService(intent)
-    }
+    context.startForegroundService(intent)
 }
 
 fun stopDevtoolsService(context: Context) {
@@ -338,4 +335,21 @@ private val mimeTypes = mapOf(
 fun getMimeType(filename: String): String {
     val extension = filename.substringAfterLast('.').lowercase()
     return mimeTypes[extension] ?: "application/octet-stream"
+}
+
+fun InputStream.readNBytesCompat(len: Int): ByteArray {
+    val buffer = ByteArray(len)
+    var totalRead = 0
+
+    while (totalRead < len) {
+        val read = this.read(buffer, totalRead, len - totalRead)
+        if (read == -1) break
+        totalRead += read
+    }
+
+    return if (totalRead == len) {
+        buffer
+    } else {
+        buffer.copyOf(totalRead)
+    }
 }
